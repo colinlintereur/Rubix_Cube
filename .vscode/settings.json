@@ -1,7 +1,12 @@
 {
-    "java.project.sourcePaths": ["src"],
-    "java.project.outputPath": "bin",
-    "java.project.referencedLibraries": [
-        "/usr/share/openjfx/lib/**/*.jar"
-    ]
+  "java.project.sourcePaths": ["src"],
+  "java.project.outputPath": "bin",
+  "java.project.referencedLibraries": [
+    "/usr/share/openjfx/lib/**/*.jar"
+  ],
+  "cSpell.words": [
+    "Cubelet",
+    "cubelets",
+    "rubix"
+  ]
 }
