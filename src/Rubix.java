@@ -8,7 +8,7 @@ public class Rubix extends Parent {
   public int dim;
   public Cubelet[][][] cubelets;
 
-  private int GAP = 20;
+  private int GAP = 2;
 
   public Rubix(int x, int y, int z, int cubeletSideLen, int dim) {
     this.x = x;
@@ -23,7 +23,7 @@ public class Rubix extends Parent {
       for (int j = 0; j < dim; j++) {
         for (int k = 0; k < dim; k++) {
           this.cubelets[i][j][k] = new Cubelet(x + (offset * (i - 1)), y + (offset * (j - 1)),
-              z + (offset * (k - 1)), cubeletSideLen);
+              z + (offset * (k - 1)), i, j, k, cubeletSideLen);
           this.getChildren().add(this.cubelets[i][j][k]);
         }
       }
