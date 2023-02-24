@@ -14,17 +14,19 @@ import javafx.event.EventHandler;
 import javafx.geometry.Point3D;
 import javafx.scene.PerspectiveCamera;
 import javafx.scene.SceneAntialiasing;
+import java.lang.Math;
 
 public class Main extends Application {
   private Scene scene;
   private Rotate rotateX;// = new Rotate(0, Rotate.X_AXIS);
   private Rotate rotateY;// = new Rotate(0, Rotate.Y_AXIS);
   private Rotate rotateZ;// = new Rotate(0, Rotate.Z_AXIS);
-  private final double TURN_FACTOR = 3;
+  private final double TURN_FACTOR = 1;
   Box box;
   private double mousePosX, mousePosY = 0;
   private double dx, dy = 0;
   private double totX, totY = 0;
+  private double alf, bet, gam = 0;
   Rubix rubix;
 
   @Override
@@ -92,7 +94,10 @@ public class Main extends Application {
         //     rotateX.getAngle() - (dy / rubix.getLen() * 360) * (Math.PI / 180) * TURN_FACTOR);
         // rotateY.setAngle(
         //     rotateY.getAngle() - (dx / rubix.getLen() * -360) * (Math.PI / 180) * TURN_FACTOR);
-        matrixRotateNode(0, totY / rubix.getLen(), -totX / rubix.getLen());
+        alf = 0;
+        gam = Math.IEEEremainder(-totX / rubix.getLen() * TURN_FACTOR, 2*Math.PI);
+        bet = Math.abs((Math.PI/2) - Math.abs(gam)) * (2/Math.PI) * Math.IEEEremainder((totY / rubix.getLen() * TURN_FACTOR), 2*Math.PI);
+        matrixRotateNode(alf, bet, gam);
       }
       // System.out.printf("angleX: %f, angleY: %f\n", rotateX.getAngle(), rotateY.getAngle());
       mousePosX = me.getSceneX();
@@ -100,7 +105,8 @@ public class Main extends Application {
     });
   }
 
-  private void matrixRotateNode(double alf, double bet, double gam){
+  private void matrixRotateNode(double alf, double bet, double gam) {
+    System.out.printf("%f %f %f\n", alf, bet, gam);
     double A11=Math.cos(alf)*Math.cos(gam);
     double A12=Math.cos(bet)*Math.sin(alf)+Math.cos(alf)*Math.sin(bet)*Math.sin(gam);
     double A13=Math.sin(alf)*Math.sin(bet)-Math.cos(alf)*Math.cos(bet)*Math.sin(gam);
