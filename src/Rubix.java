@@ -1,23 +1,20 @@
 import javafx.scene.Parent;
+import javafx.scene.shape.Line;
+import javafx.scene.transform.Rotate;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
 
 public class Rubix extends Parent {
-  private int x;
-  private int y;
-  private int z;
   private int cubeletSideLen;
-  public int dim;
   public Cubelet[][][] cubelets;
 
   private int GAP = 2;
 
   public Rubix(int x, int y, int z, int cubeletSideLen, int dim) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
     this.cubeletSideLen = cubeletSideLen;
-    this.dim = dim;
     this.cubelets = new Cubelet[dim][dim][dim];
 
+    // RUBIX CUBE
     int offset = cubeletSideLen + GAP;
     for (int i = 0; i < dim; i++) {
       for (int j = 0; j < dim; j++) {
@@ -28,6 +25,27 @@ public class Rubix extends Parent {
         }
       }
     }
+
+    // AXES
+    Line xAxis = new Line(x, y, x + (offset * 3), y);
+    xAxis.setStroke(Color.RED);
+    xAxis.setStrokeWidth(5);
+    Text xString = new Text(x + (offset * 3) + 20, y + 5, "X");
+
+    Line yAxis = new Line(x, y, x, y + (offset * 3));
+    yAxis.setStroke(Color.GREEN);
+    yAxis.setStrokeWidth(5);
+    Text yString = new Text(x - 5, y + (offset * 3) + 20, "Y");
+
+    Line zAxis = new Line(x, y, x, y + (offset * 3));
+    zAxis.setStroke(Color.BLUE);
+    zAxis.setStrokeWidth(5);
+    Text zString = new Text(x - 5, y + (offset * 3) + 20, "Z");
+
+    Rotate rotate = new Rotate(90, x, y, z, Rotate.X_AXIS);
+    zAxis.getTransforms().add(rotate);
+    zString.getTransforms().add(rotate);
+    this.getChildren().addAll(xAxis, yAxis, zAxis, xString, yString, zString);
   }
 
   public int getLen() {

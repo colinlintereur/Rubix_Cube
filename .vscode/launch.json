@@ -6,6 +6,30 @@
   "configurations": [
     {
       "type": "java",
+      "name": "Launch CameraRotationApp",
+      "request": "launch",
+      "mainClass": "CameraRotationApp",
+      "projectName": "Rubix_Cube_b8c4ade0",
+      "vmArgs": "-Dprism.forceGPU=true --module-path /usr/share/openjfx/lib --add-modules javafx.controls,javafx.fxml"
+    },
+    {
+      "type": "java",
+      "name": "Launch Rotate2",
+      "request": "launch",
+      "mainClass": "Rotate2",
+      "projectName": "Rubix_Cube_b8c4ade0",
+      "vmArgs": "-Dprism.forceGPU=true --module-path /usr/share/openjfx/lib --add-modules javafx.controls,javafx.fxml"
+    },
+    {
+      "type": "java",
+      "name": "Launch Rotate1",
+      "request": "launch",
+      "mainClass": "Rotate1",
+      "projectName": "Rubix_Cube_b8c4ade0",
+      "vmArgs": "-Dprism.forceGPU=true --module-path /usr/share/openjfx/lib --add-modules javafx.controls,javafx.fxml"
+    },
+    {
+      "type": "java",
       "name": "Launch App",
       "request": "launch",
       "mainClass": "Main",

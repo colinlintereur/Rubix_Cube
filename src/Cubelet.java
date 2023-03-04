@@ -2,74 +2,104 @@ import javafx.scene.shape.Box;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.PhongMaterial;
 import javafx.scene.Parent;
-import javafx.scene.Group;
 
-public class Cubelet extends Parent{
-  private PhongMaterial material;// = new PhongMaterial();
+public class Cubelet extends Parent {
+  enum Side {
+    FRONT,
+    BACK,
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN,
+    INSIDE
+  }
+
+  class CBox extends Box {
+    private Side side;
+    public CBox(int x, int y, int z, int width, int height, int depth) {
+      super(width, height, depth);
+      this.setTranslateX(x);
+      this.setTranslateY(y);
+      this.setTranslateZ(z);
+    }
+
+    protected void setSide(Side s) {
+      this.side = s;
+      return;
+    }
+
+    public Side getSide() {
+      return this.side;
+    }
+  }
 
   public Cubelet(int x, int y, int z, int i, int j, int k, int sideLen) {
-    Box box;
-    // material.setDiffuseColor(color);
+    CBox box;
 
     //FRONT
-    box = new Box(sideLen, sideLen, 0);
-    if (k > 0) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.GREEN));
-    box.setTranslateX(x);
-    box.setTranslateY(y);
-    box.setTranslateZ(z - (sideLen / 2));
+    box = new CBox(x, y, z - (sideLen / 2), sideLen, sideLen, 0);
+    if (k > 0) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.GREEN));
+      box.setSide(Side.FRONT);
+    }
     this.getChildren().add(box);
 
     //BACK
-    box = new Box(sideLen, sideLen, 0);
-    if (k < 2) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.BLUE));
-    box.setTranslateX(x);
-    box.setTranslateY(y);
-    box.setTranslateZ(z + (sideLen / 2));
+    box = new CBox(x, y, z + (sideLen / 2), sideLen, sideLen, 0);
+    if (k < 2) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.BLUE));
+      box.setSide(Side.BACK);
+    }
     this.getChildren().add(box);
 
     //LEFT
-    box = new Box(0, sideLen, sideLen);
-    if (i > 0) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.RED));
-    box.setTranslateX(x - (sideLen / 2));
-    box.setTranslateY(y);
-    box.setTranslateZ(z);
+    box = new CBox(x - (sideLen / 2), y, z, 0, sideLen, sideLen);
+    if (i > 0) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.RED));
+      box.setSide(Side.LEFT);
+    }
     this.getChildren().add(box);
 
     //RIGHT
-    box = new Box(0, sideLen, sideLen);
-    if (i < 2) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.ORANGE));
-    box.setTranslateX(x + (sideLen / 2));
-    box.setTranslateY(y);
-    box.setTranslateZ(z);
+    box = new CBox(x + (sideLen / 2), y, z, 0, sideLen, sideLen);
+    if (i < 2) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.ORANGE));
+      box.setSide(Side.RIGHT);
+    }
     this.getChildren().add(box);
 
     //UP
-    box = new Box(sideLen, 0, sideLen);
-    if (j > 0) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.YELLOW));
-    box.setTranslateX(x);
-    box.setTranslateY(y - (sideLen / 2));
-    box.setTranslateZ(z);
+    box = new CBox(x, y - (sideLen / 2), z, sideLen, 0, sideLen);
+    if (j > 0) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.YELLOW));
+      box.setSide(Side.UP);
+    }
     this.getChildren().add(box);
 
     //DOWN
-    box = new Box(sideLen, 0, sideLen);
-    if (j < 2) box.setMaterial(new PhongMaterial(Color.BLACK));
-    else box.setMaterial(new PhongMaterial(Color.WHITE));
-    box.setTranslateX(x);
-    box.setTranslateY(y + (sideLen / 2));
-    box.setTranslateZ(z);
+    box = new CBox(x, y + (sideLen / 2), z, sideLen, 0, sideLen);
+    if (j  < 2) {
+      box.setMaterial(new PhongMaterial(Color.BLACK));
+      box.setSide(Side.INSIDE);
+    } else {
+      box.setMaterial(new PhongMaterial(Color.WHITE));
+      box.setSide(Side.DOWN);
+    }
     this.getChildren().add(box);
-
-    // Box box = new Box(sideLen, sideLen, sideLen);
-    // box.setMaterial(material);
-    // box.setTranslateX(x);
-    // box.setTranslateY(y);
-    // box.setTranslateZ(z);
-    // this.getChildren().add(box);
   }
 }

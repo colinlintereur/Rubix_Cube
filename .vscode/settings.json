@@ -5,6 +5,7 @@
     "/usr/share/openjfx/lib/**/*.jar"
   ],
   "cSpell.words": [
+    "Antialiasing",
     "Cubelet",
     "cubelets",
     "Phong",
