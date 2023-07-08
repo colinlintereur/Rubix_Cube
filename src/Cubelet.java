@@ -1,39 +1,15 @@
-import javafx.scene.shape.Box; 
 import javafx.scene.paint.Color;
 import javafx.scene.paint.PhongMaterial;
 import javafx.scene.Parent;
+import javafx.scene.Node;
+import javafx.collections.ObservableList;
 
 public class Cubelet extends Parent {
-  enum Side {
-    FRONT,
-    BACK,
-    LEFT,
-    RIGHT,
-    UP,
-    DOWN,
-    INSIDE
-  }
-
-  class CBox extends Box {
-    private Side side;
-    public CBox(int x, int y, int z, int width, int height, int depth) {
-      super(width, height, depth);
-      this.setTranslateX(x);
-      this.setTranslateY(y);
-      this.setTranslateZ(z);
-    }
-
-    protected void setSide(Side s) {
-      this.side = s;
-      return;
-    }
-
-    public Side getSide() {
-      return this.side;
-    }
-  }
-
+  public int i, j, k;
   public Cubelet(int x, int y, int z, int i, int j, int k, int sideLen) {
+    this.i = i;
+    this.j = j;
+    this.k = k;
     CBox box;
 
     //FRONT
@@ -101,5 +77,10 @@ public class Cubelet extends Parent {
       box.setSide(Side.DOWN);
     }
     this.getChildren().add(box);
+  }
+
+  @Override
+  public ObservableList<Node> getChildren() {
+    return super.getChildren();
   }
 }
