@@ -12,16 +12,17 @@ public class CubeController : MonoBehaviour
   public int DIM = 3;
   private GameObject rubixCube;
   private TextMeshProUGUI liftLMB;
-  private Transform[,,] transforms = new Transform[3, 3, 3];
+  private Transform[,,] cubeletIndexesToTransformMap = new Transform[3, 3, 3];
   private List<Transform> rotateGroup;
   private Vector3 rotateAxis = Vector3.zero;
   private Vector3 nonAxis = Vector3.zero;
+  private GameObject startingSide;
   private float rotateAngle = 0;
   private float totRotateAngle = 0;
   private SortedDictionary<double, (Vector3 axis, Vector2 persp)> sorted;
   private double sortedKey;
   private Dictionary<Vector3, List<Side>> sides;
-  private Dictionary<Transform, Vector3Int> indices;
+  private Dictionary<GameObject, Vector3Int> cubeletGameObjectToIndexesMap;
   private enum MouseState
   {
     UNSET,
@@ -51,6 +52,7 @@ public class CubeController : MonoBehaviour
   }
   private RemainingRotation remainingRotation;
   private bool lockLMB = false;
+  private bool rotateLMB = false;
 
   // Start is called before the first frame update
   void Start()
@@ -61,17 +63,16 @@ public class CubeController : MonoBehaviour
             { Vector3.up, new List<Side>() { Side.FRONT, Side.RIGHT, Side.BACK, Side.LEFT } },
             { Vector3.forward, new List<Side>() { Side.RIGHT, Side.DOWN, Side.LEFT, Side.UP } }
         };
-    indices = new Dictionary<Transform, Vector3Int>();
+    cubeletGameObjectToIndexesMap = new Dictionary<GameObject, Vector3Int>();
 
     rubixCube = GameObject.Find("Rubix Cube");
     liftLMB = GameObject.Find("LiftLMB").GetComponent<TextMeshProUGUI>();
-    // Cubelets are ordered. Could potentially flatten 3D array to 1D
     for (int i = 0; i < rubixCube.transform.childCount; i++)
     {
-      Transform child = rubixCube.transform.GetChild(i);
+      GameObject child = rubixCube.transform.GetChild(i).gameObject;
       //Debug.Log(child + ", worldPos: " + child.position);
-      transforms[i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3] = child;
-      indices[child] = new Vector3Int(i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3);
+      cubeletIndexesToTransformMap[i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3] = child.transform;
+      cubeletGameObjectToIndexesMap[child] = new Vector3Int(i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3);
     }
   }
 
@@ -97,6 +98,7 @@ public class CubeController : MonoBehaviour
         if (priorMouseState == MouseState.LMB)
         {
           Debug.Log("WOW, Very impressive mouse work!");
+          FinishRotation();
         }
         lockLMB = false;
 
@@ -110,20 +112,23 @@ public class CubeController : MonoBehaviour
       case MouseState.LMB:
         if (lockLMB) break;
 
-        // Logic for rotating sides of the cube with LMB
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, 100))
+        if (!rotateLMB)
         {
-          nonAxis = hit.transform.gameObject.GetComponent<SideComponent>().side.GetAxis();
-        }
-        else if (nonAxis == Vector3.zero)
-        {
-          break;
-        }
+          // Logic for rotating sides of the cube with LMB
+          Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+          if (Physics.Raycast(ray, out RaycastHit hit, 100))
+          {
+            if (hit.transform.gameObject.GetComponent<SideComponent>().side != Side.INSIDE)
+            {
+              startingSide = hit.transform.gameObject;
+              nonAxis = startingSide.GetComponent<SideComponent>().side.GetAxis();
 
-        // Finish any current rotation
-        FinishRotation();
+              // Finish any current rotation
+              SnapRotation();
+              rotateLMB = true;
+            }
+          }
+        }
 
         float dx = Input.GetAxis("Mouse X");
         float dy = Input.GetAxis("Mouse Y");
@@ -159,8 +164,7 @@ public class CubeController : MonoBehaviour
             sortedKey = kvp.Key;
           }
 
-          rotateGroup = new List<Transform>();
-          InititalizeGroups(hit);
+          rotateGroup = InititalizeGroups(startingSide, rotateAxis);
           totRotateAngle = 0;
         }
 
@@ -174,26 +178,31 @@ public class CubeController : MonoBehaviour
         }
         break;
       case MouseState.NEITHER:
-        lockLMB = false;
-        ResetController();
-        if (remainingRotation.remainingAngle != 0)
-        {
-          int angleSign = Math.Sign(remainingRotation.remainingAngle);
-          float anglePercent = remainingRotation.remainingAngle / remainingRotation.startingAngle;
-          float percentToRot = (.01F * anglePercent) + .01F;
-          float angleToRot = angleSign * Mathf.Min(percentToRot * Math.Abs(remainingRotation.startingAngle) * SNAP_SCALE, Math.Abs(remainingRotation.remainingAngle));
-          remainingRotation.remainingAngle = remainingRotation.remainingAngle - angleToRot;
-          //Debug.Log($"Rotating {angleToRot}");
-
-          foreach (var cubelet in remainingRotation.rotateGroup)
-          {
-            // rotateAxis needs to be rotated to match cube rotation (this function rotates on world axis)
-            cubelet.transform.RotateAround(Vector3.zero, rubixCube.transform.rotation * remainingRotation.rotateAxis, angleToRot);
-          }
-        }
+        FinishRotation();
         break;
       case MouseState.UNSET:
         throw new Exception("MouseState is UNSET!");
+    }
+  }
+
+  private void FinishRotation()
+  {
+    lockLMB = false;
+    rotateLMB = false;
+    ResetController();
+    if (remainingRotation.remainingAngle != 0)
+    {
+      int angleSign = Math.Sign(remainingRotation.remainingAngle);
+      float anglePercent = remainingRotation.remainingAngle / remainingRotation.startingAngle;
+      float percentToRot = (.01F * anglePercent) + .01F;
+      float angleToRot = angleSign * Mathf.Min(percentToRot * Math.Abs(remainingRotation.startingAngle) * SNAP_SCALE, Math.Abs(remainingRotation.remainingAngle));
+      remainingRotation.remainingAngle = remainingRotation.remainingAngle - angleToRot;
+
+      foreach (var cubelet in remainingRotation.rotateGroup)
+      {
+        // rotateAxis needs to be rotated to match cube rotation (this function rotates on world axis)
+        cubelet.transform.RotateAround(Vector3.zero, rubixCube.transform.rotation * remainingRotation.rotateAxis, angleToRot);
+      }
     }
   }
 
@@ -210,12 +219,10 @@ public class CubeController : MonoBehaviour
       float finalAngle = (float)Math.IEEERemainder(totRotateAngle, 90.0);
       if (totRotateAngle != 0)
       {
-        //Debug.Log($"updating sides; totRotateAngle: {totRotateAngle}, finalAngle: {finalAngle}");
         UpdateSides(finalAngle);
       }
 
       remainingRotation = new RemainingRotation(rotateGroup, rotateAxis, finalAngle);
-      Debug.Log($"{remainingRotation}");
 
       totRotateAngle = 0;
       rotateAxis = Vector3.zero;
@@ -225,7 +232,7 @@ public class CubeController : MonoBehaviour
     return;
   }
 
-  private void FinishRotation()
+  private void SnapRotation()
   {
     if (remainingRotation.remainingAngle != 0)
     {
@@ -249,31 +256,31 @@ public class CubeController : MonoBehaviour
     {
       foreach (var cubelet in rotateGroup)
       {
-        Vector3Int coords = indices[cubelet];
+        Vector3Int coords = cubeletGameObjectToIndexesMap[cubelet.gameObject];
         if (rotateAxis == Vector3.right)
         {
-          transforms[coords.x, coords.z, DIM - coords.y - 1] = cubelet;
+          cubeletIndexesToTransformMap[coords.x, coords.z, DIM - coords.y - 1] = cubelet;
           swap = coords.y;
           coords.y = coords.z;
           coords.z = DIM - swap - 1;
-          indices[cubelet] = coords;
+          cubeletGameObjectToIndexesMap[cubelet.gameObject] = coords;
         }
 
         else if (rotateAxis == Vector3.up)
         {
-          transforms[DIM - coords.z - 1, coords.y, coords.x] = cubelet;
+          cubeletIndexesToTransformMap[DIM - coords.z - 1, coords.y, coords.x] = cubelet;
           swap = coords.z;
           coords.z = coords.x;
           coords.x = DIM - swap - 1;
-          indices[cubelet] = coords;
+          cubeletGameObjectToIndexesMap[cubelet.gameObject] = coords;
         }
         else if (rotateAxis == Vector3.forward)
         {
-          transforms[coords.y, DIM - coords.x - 1, coords.z] = cubelet;
+          cubeletIndexesToTransformMap[coords.y, DIM - coords.x - 1, coords.z] = cubelet;
           swap = coords.x;
           coords.x = coords.y;
           coords.y = DIM - swap - 1;
-          indices[cubelet] = coords;
+          cubeletGameObjectToIndexesMap[cubelet.gameObject] = coords;
         }
       }
     }
@@ -291,33 +298,34 @@ public class CubeController : MonoBehaviour
     }
   }
 
-  private void InititalizeGroups(RaycastHit hit)
+  private List<Transform> InititalizeGroups(GameObject side, Vector3 axis)
   {
-    Side side = hit.transform.gameObject.GetComponent<SideComponent>().side;
-    Vector3Int index = indices[hit.transform.parent];
-    switch (side)
+    Side s = side.GetComponent<SideComponent>().side;
+    Vector3Int index = cubeletGameObjectToIndexesMap[side.transform.parent.gameObject];
+    List<Transform> transformGroup = new List<Transform>();
+    switch (s)
     {
       case Side.FRONT:
       case Side.BACK:
         {
-          if (rotateAxis == Vector3.right)
+          if (axis == Vector3.right)
           {
             for (int j = 0; j <= 2; j++)
             {
               for (int k = 0; k <= 2; k++)
               {
                 // Formerly (int)(hit.transform.parent.localPosition.x / CUBELET_GAP) + 1  // USING LOCALPOSITION MIGHT BE A PROBLEM
-                rotateGroup.Add(transforms[index.x, j, k]);
+                transformGroup.Add(cubeletIndexesToTransformMap[index.x, j, k]);
               }
             }
           }
-          else if (rotateAxis == Vector3.up)
+          else if (axis == Vector3.up)
           {
             for (int i = 0; i <= 2; i++)
             {
               for (int k = 0; k <= 2; k++)
               {
-                rotateGroup.Add(transforms[i, index.y, k]);
+                transformGroup.Add(cubeletIndexesToTransformMap[i, index.y, k]);
               }
             }
           }
@@ -326,23 +334,23 @@ public class CubeController : MonoBehaviour
       case Side.LEFT:
       case Side.RIGHT:
         {
-          if (rotateAxis == Vector3.up)
+          if (axis == Vector3.up)
           {
             for (int i = 0; i <= 2; i++)
             {
               for (int k = 0; k <= 2; k++)
               {
-                rotateGroup.Add(transforms[i, index.y, k]);
+                transformGroup.Add(cubeletIndexesToTransformMap[i, index.y, k]);
               }
             }
           }
-          else if (rotateAxis == Vector3.forward)
+          else if (axis == Vector3.forward)
           {
             for (int i = 0; i <= 2; i++)
             {
               for (int j = 0; j <= 2; j++)
               {
-                rotateGroup.Add(transforms[i, j, index.z]);
+                transformGroup.Add(cubeletIndexesToTransformMap[i, j, index.z]);
               }
             }
           }
@@ -351,23 +359,23 @@ public class CubeController : MonoBehaviour
       case Side.UP:
       case Side.DOWN:
         {
-          if (rotateAxis == Vector3.right)
+          if (axis == Vector3.right)
           {
             for (int j = 0; j <= 2; j++)
             {
               for (int k = 0; k <= 2; k++)
               {
-                rotateGroup.Add(transforms[index.x, j, k]);
+                transformGroup.Add(cubeletIndexesToTransformMap[index.x, j, k]);
               }
             }
           }
-          else if (rotateAxis == Vector3.forward)
+          else if (axis == Vector3.forward)
           {
             for (int i = 0; i <= 2; i++)
             {
               for (int j = 0; j <= 2; j++)
               {
-                rotateGroup.Add(transforms[i, j, index.z]);
+                transformGroup.Add(cubeletIndexesToTransformMap[i, j, index.z]);
               }
             }
           }
@@ -376,6 +384,8 @@ public class CubeController : MonoBehaviour
       case Side.INSIDE:
       default: break;
     }
+
+    return transformGroup;
   }
 
   // This method detemines the priority of different mouse states:
