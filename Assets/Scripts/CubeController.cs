@@ -27,9 +27,16 @@ public class CubeController : MonoBehaviour
   {
     UNSET,
     MANUAL,
-    AUTO
+    SHUFFLE,
+    SOLVE
   }
   private enum ShuffleState
+  {
+    UNSET,
+    PICK,
+    ROTATE
+  }
+  private enum SolveState
   {
     UNSET,
     PICK,
@@ -51,12 +58,36 @@ public class CubeController : MonoBehaviour
     public Vector3 rotateAxis;
     public float startingAngle;
     public float remainingAngle;
+
+    public override string ToString()
+    {
+      return $"rotateAxis: {rotateAxis}, startingAngle: {startingAngle}, remainingAngle: {remainingAngle}";
+    }
+  }
+  private struct Rotation
+  {
+    public Rotation(GameObject side, Vector3 rotateAxis, int CWRots)
+    {
+      this.side = side;
+      this.rotateAxis = rotateAxis;
+      this.CWRots = CWRots;
+    }
+
+    public GameObject side;
+    public Vector3 rotateAxis;
+    public int CWRots;
+
+    public override string ToString()
+    {
+      return $"rotateAxis: {rotateAxis}, CWRots: {CWRots}";
+    }
   }
 
   // SCENE OBJECTS
   private GameObject rubixCube;
   private TextMeshProUGUI liftLMB;
   private Button shuffleToggleButton;
+  private Button magicSolveButton;
   private Scrollbar autoRotateSpeedScrollbar;
 
   // COLLECTIONS
@@ -64,6 +95,7 @@ public class CubeController : MonoBehaviour
   private readonly Side[,] originalChildIndexesToSideArray = new Side[27, 6]; // ONLY SET ONCE
   private List<Transform> rotateGroup;
   private List<GameObject> quadList;
+  private List<Rotation> rotationHistory;
   private SortedDictionary<double, (Vector3 axis, Vector2 persp)> sorted;
   private Dictionary<Vector3, List<Side>> vectorToSideMap;
   private Dictionary<GameObject, Vector3Int> cubeletGameObjectToIndexesMap;
@@ -75,6 +107,7 @@ public class CubeController : MonoBehaviour
   private MouseState priorMouseState;
   private SimState simState;
   private ShuffleState shuffleState;
+  private SolveState solveState;
   private RemainingRotation remainingRotation;
   private Vector3 rotateAxis = Vector3.zero;
   private Vector3 nonAxis = Vector3.zero;
@@ -84,6 +117,7 @@ public class CubeController : MonoBehaviour
   private float totRotateAngle = 0;
   private bool lockLMB = false;
   private bool rotateLMB = false;
+  private bool canClickButtons = false;
   private GameObject startingSide;
 
   // Start is called before the first frame update
@@ -106,14 +140,16 @@ public class CubeController : MonoBehaviour
     };
     cubeletGameObjectToIndexesMap = new Dictionary<GameObject, Vector3Int>();
     originalCubeletGameObjectToPositionMap = new Dictionary<GameObject, Vector3>();
-    quadList = new List<GameObject>();
+    quadList = new();
     simState = SimState.MANUAL;
     rubixCube = GameObject.Find("Rubix Cube");
     liftLMB = GameObject.Find("LiftLMB").GetComponent<TextMeshProUGUI>();
     shuffleToggleButton = GameObject.Find("ShuffleToggleButton").GetComponent<Button>();
+    magicSolveButton = GameObject.Find("MagicSolveButton").GetComponent<Button>();
     autoRotateSpeedScrollbar = GameObject.Find("AutoRotateSpeedScrollbar").GetComponent<Scrollbar>();
     autoRotateSpeedScrollbar.value = AUTO_ROTATE_SPEED;
     cubePos = rubixCube.transform.position;
+    rotationHistory = new();
 
     for (int i = 0; i < rubixCube.transform.childCount; i++)
     {
@@ -131,6 +167,7 @@ public class CubeController : MonoBehaviour
         }
       }
     }
+    canClickButtons = true;
   }
 
   // Update is called once per frame
@@ -144,7 +181,7 @@ public class CubeController : MonoBehaviour
         HandleManualState();
         break;
 
-      case SimState.AUTO:
+      case SimState.SHUFFLE:
         if (currentMouseState == MouseState.RMB)
         {
           // Rotate whole cube with RMB
@@ -156,6 +193,20 @@ public class CubeController : MonoBehaviour
         }
 
         HandleShuffleState();
+        break;
+
+      case SimState.SOLVE:
+        if (currentMouseState == MouseState.RMB)
+        {
+          // Rotate whole cube with RMB
+          float camX = Input.GetAxis("Mouse X");
+          float camY = Input.GetAxis("Mouse Y");
+
+          Quaternion rotation = Quaternion.Euler(camY * CAMERA_SCALE, -camX * CAMERA_SCALE, 0);
+          rubixCube.transform.rotation = rotation * rubixCube.transform.rotation;
+        }
+
+        HandleSolveState();
         break;
 
       default:
@@ -208,7 +259,7 @@ public class CubeController : MonoBehaviour
             else if (hit.transform.gameObject.GetComponent<SideComponent>().side != Side.INSIDE)
             {
               startingSide = hit.transform.gameObject;
-              nonAxis = startingSide.GetComponent<SideComponent>().side.GetAxis();
+              nonAxis = startingSide.GetComponent<SideComponent>().side.GetNonAxis();
 
               // Finish any current rotation
               FinishRemainingRotation();
@@ -289,11 +340,14 @@ public class CubeController : MonoBehaviour
       {
         float percentToRot = (.01F * anglePercent) + .01F;
         angleToRot = angleSign * Mathf.Min(percentToRot * Math.Abs(remainingRotation.startingAngle) * SNAP_SCALE, Math.Abs(remainingRotation.remainingAngle));
+        //Debug.Log($"MANUAL::ContinueRemainingRotation(): angleToRot: {angleToRot}, startingAngle: {remainingRotation.startingAngle}");
       }
       else
       {
-        int rotates = CWRotations(-remainingRotation.startingAngle);
-        angleToRot = angleSign * Mathf.Min(Math.Abs(remainingRotation.startingAngle) * AUTO_ROTATE_SPEED * .02F / rotates, Math.Abs(remainingRotation.remainingAngle));
+        // remainingRotation should be some multiple of 90
+        int rotates = (int)Math.Abs(Math.Round(remainingRotation.startingAngle / 90));
+        angleToRot = angleSign * Math.Min(Math.Abs(remainingRotation.startingAngle) * AUTO_ROTATE_SPEED * .02F / rotates, Math.Abs(remainingRotation.remainingAngle));
+        //Debug.Log($"AUTO::ContinueRemainingRotation(): angleToRot: {angleToRot}, rotates: {rotates}, remainingRotation: {remainingRotation}");
       }
       remainingRotation.remainingAngle -= angleToRot;
 
@@ -320,7 +374,7 @@ public class CubeController : MonoBehaviour
       if (totRotateAngle != 0)
       {
         int rotates = CWRotations(totRotateAngle - finalAngle);
-        UpdateSides(rotateGroup, rotateAxis, rotates);
+        UpdateSides(rotateGroup, rotateAxis, rotates, true);
       }
 
       remainingRotation = new RemainingRotation(rotateGroup, rotateAxis, finalAngle);
@@ -344,14 +398,18 @@ public class CubeController : MonoBehaviour
       }
 
       int rotates = CWRotations(-remainingRotation.startingAngle);
-      UpdateSides(remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates);
+      UpdateSides(remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
       remainingRotation = new RemainingRotation();
     }
     return;
   }
 
-  private void UpdateSides(List<Transform> rotGroup, Vector3 rotAxis, int rotates)
+  private void UpdateSides(List<Transform> rotGroup, Vector3 rotAxis, int rotates, bool addToHistory)
   {
+    if ((rotates != 0) && addToHistory)
+    {
+      rotationHistory.Add(new Rotation(startingSide, rotAxis, rotates));
+    }
     List<Side> sidesList = vectorToSideMap[rotAxis];
     int swap;
 
@@ -526,7 +584,7 @@ public class CubeController : MonoBehaviour
         if (remainingRotation.remainingAngle == 0)
         {
           int rotates = CWRotations(-remainingRotation.startingAngle);
-          UpdateSides(remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates);
+          UpdateSides(remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
           shuffleState = ShuffleState.PICK;
         }
         break;
@@ -535,20 +593,60 @@ public class CubeController : MonoBehaviour
     }
   }
 
+  private void HandleSolveState()
+  {
+    //Debug.Log($"HandleSolveState(): {rotationHistory.Count}");
+    switch (solveState)
+    {
+      case SolveState.PICK:
+        if (rotationHistory.Count == 0)
+        {
+          simState = SimState.MANUAL;
+          solveState = SolveState.UNSET;
+          break;
+        }
+        Rotation rotation = rotationHistory[rotationHistory.Count - 1];
+        rotationHistory.RemoveAt(rotationHistory.Count - 1);
+        //Debug.Log($"HandleSolveState(): {rotation}");
+
+        List<Transform> rotGroup = InititalizeGroups(rotation.side, rotation.rotateAxis);
+        remainingRotation = new RemainingRotation(rotGroup, rotation.rotateAxis, 90 * rotation.CWRots);
+        solveState = SolveState.ROTATE;
+        break;
+      case SolveState.ROTATE:
+        ContinueRemainingRotation();
+        if (remainingRotation.remainingAngle == 0)
+        {
+          int rotates = CWRotations(-remainingRotation.startingAngle);
+          //Debug.Log($"HandleSolveState(): rotates: {rotates}, startingAngle: {remainingRotation.startingAngle}");
+          UpdateSides(remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, false);
+          solveState = SolveState.PICK;
+        }
+        break;
+      case SolveState.UNSET:
+        break;
+    }
+  }
+
   // Called by the ShuffleToggleButton.onClick()
   public void ShuffleCubeToggle()
   {
+    if (!canClickButtons) return;
+    canClickButtons = false;
     shuffleToggleButton.interactable = false;
-    simState = (simState == SimState.AUTO) ? SimState.MANUAL : SimState.AUTO;
+    simState = (simState == SimState.SHUFFLE) ? SimState.MANUAL : SimState.SHUFFLE;
     shuffleState = (shuffleState == ShuffleState.UNSET) ? ShuffleState.PICK : ShuffleState.UNSET;
     FinishRemainingRotation();
     shuffleToggleButton.interactable = true;
+    canClickButtons = true;
   }
 
   // Called by the ShuffleOneTimeButton.onClick()
   public void ShuffleCubeOneTime()
   {
-    simState = SimState.AUTO;
+    if (!canClickButtons) return;
+    canClickButtons = false;
+    simState = SimState.SHUFFLE;
     FinishRemainingRotation();
     List<Transform> rotGroup;
     for (int i = 0; i < SHUFFLE_STEPS; i++)
@@ -559,20 +657,26 @@ public class CubeController : MonoBehaviour
 
       GameObject sideToRotate = quadList[randSideIndex];
       if (sideToRotate == null) Debug.Log("sideToRotate is null!");
+      // This is needed for the magic solve. This feels wrong and should be fixed.
+      startingSide = sideToRotate;
       Vector3 rotAxis = sideToVectorMap[sideToRotate.GetComponent<SideComponent>().side][randRotateAxis];
 
       rotGroup = InititalizeGroups(sideToRotate, rotAxis);
       RotateGroup(rotGroup, rotAxis, randRotateNum);
     }
     simState = SimState.MANUAL;
+    canClickButtons = true;
   }
 
   // Called by the ResetSimButton.onClick()
   public void ResetCube()
   {
+    canClickButtons = false;
     FinishRemainingRotation();
     simState = SimState.MANUAL;
     shuffleState = ShuffleState.UNSET;
+    solveState = SolveState.UNSET;
+    rotationHistory.Clear();
 
     rubixCube.transform.rotation = Quaternion.identity;
     for (int i = 0; i < rubixCube.transform.childCount; i++)
@@ -588,6 +692,21 @@ public class CubeController : MonoBehaviour
         child.transform.GetChild(j).GetComponent<SideComponent>().side = originalChildIndexesToSideArray[i, j];
       }
     }
+    canClickButtons = true;
+  }
+
+  // Called by the MagicSolveButton.onClick()
+  public void MagicSolveToggle()
+  {
+    if (!canClickButtons) return;
+    canClickButtons = false;
+    magicSolveButton.interactable = false;
+    simState = (simState == SimState.SOLVE) ? SimState.MANUAL : SimState.SOLVE;
+    solveState = (solveState == SolveState.UNSET) ? SolveState.PICK : SolveState.UNSET;
+    //Debug.Log($"MagicSolveToggle(): simState: {simState}, solveState: {solveState}");
+    FinishRemainingRotation();
+    magicSolveButton.interactable = true;
+    canClickButtons = true;
   }
 
   private void RotateGroup(List<Transform> rotateGroup, Vector3 rotAxis, int numRotates)
@@ -597,7 +716,7 @@ public class CubeController : MonoBehaviour
       // rotateAxis needs to be rotated to match cube rotation (this function rotates on world axis)
       cubelet.transform.RotateAround(cubePos, rubixCube.transform.rotation * rotAxis, -90 * numRotates);
     }
-    UpdateSides(rotateGroup, rotAxis, numRotates);
+    UpdateSides(rotateGroup, rotAxis, numRotates, true);
   }
 
   // rotation is CW (rotation axis goes into screen)
