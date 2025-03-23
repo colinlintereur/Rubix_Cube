@@ -12,8 +12,8 @@ public class CubeController : MonoBehaviour
   public float SNAP_SPEED = 10;
   public int DIM = 3;
   public int SHUFFLE_STEPS = 50;
-  public float AUTO_ROTATE_SPEED = 20;
-  public float AUTO_ROTATE_SPEED_SCALE = 20;
+  public float AUTO_ROTATE_SPEED = 40;
+  public float AUTO_ROTATE_SPEED_SCALE = 40;
 
   // ENUMS
   private enum MouseState
@@ -153,7 +153,7 @@ public class CubeController : MonoBehaviour
     shuffleOneTimeButton = GameObject.Find("ShuffleOneTimeButton").GetComponent<Button>();
     magicSolveButton = GameObject.Find("MagicSolveButton").GetComponent<Button>();
     autoRotateSpeedScrollbar = GameObject.Find("AutoRotateSpeedScrollbar").GetComponent<Scrollbar>();
-    autoRotateSpeedScrollbar.value = AUTO_ROTATE_SPEED;
+    autoRotateSpeedScrollbar.value = .5F;
     cubePos = rubixCube.transform.position;
     rotationHistory = new();
 
@@ -268,7 +268,7 @@ public class CubeController : MonoBehaviour
               nonAxis = startingSide.GetComponent<SideComponent>().side.GetNonAxis();
 
               // Finish any current rotation
-              FinishRemainingRotation();
+              FinishRemainingRotation(true);
               rotateLMB = true;
             }
           }
@@ -411,7 +411,7 @@ public class CubeController : MonoBehaviour
     return;
   }
 
-  private void FinishRemainingRotation()
+  private void FinishRemainingRotation(bool storeHistory)
   {
     if (remainingRotation.remainingAngle != 0)
     {
@@ -422,7 +422,7 @@ public class CubeController : MonoBehaviour
       }
 
       int rotates = CWRotations(-remainingRotation.startingAngle);
-      UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
+      UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, storeHistory);
       remainingRotation = new RemainingRotation();
     }
     return;
@@ -662,7 +662,7 @@ public class CubeController : MonoBehaviour
     shuffleToggleButton.interactable = false;
     simState = (simState == SimState.SHUFFLE) ? SimState.MANUAL : SimState.SHUFFLE;
     shuffleState = (shuffleState == ShuffleState.UNSET) ? ShuffleState.PICK : ShuffleState.UNSET;
-    FinishRemainingRotation();
+    FinishRemainingRotation(true);
     shuffleToggleButton.interactable = true;
     canClickButtons = true;
   }
@@ -673,7 +673,7 @@ public class CubeController : MonoBehaviour
     if (!canClickButtons) return;
     canClickButtons = false;
     simState = SimState.SHUFFLE;
-    FinishRemainingRotation();
+    FinishRemainingRotation(true);
     for (int i = 0; i < SHUFFLE_STEPS; i++)
     {
       int randSideIndex = UnityEngine.Random.Range(0, quadList.Count);
@@ -695,7 +695,7 @@ public class CubeController : MonoBehaviour
   {
     canClickButtons = false;
     isToggleEnabled = false;
-    FinishRemainingRotation();
+    FinishRemainingRotation(false);
     simState = SimState.MANUAL;
     shuffleState = ShuffleState.UNSET;
     solveState = SolveState.UNSET;
@@ -728,7 +728,7 @@ public class CubeController : MonoBehaviour
     simState = (simState == SimState.SOLVE) ? SimState.MANUAL : SimState.SOLVE;
     solveState = (solveState == SolveState.UNSET) ? SolveState.PICK : SolveState.UNSET;
     //Debug.Log($"MagicSolveToggle(): simState: {simState}, solveState: {solveState}");
-    FinishRemainingRotation();
+    FinishRemainingRotation(false);
     magicSolveButton.interactable = true;
     canClickButtons = true;
   }
