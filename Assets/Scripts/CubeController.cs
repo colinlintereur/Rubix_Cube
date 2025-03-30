@@ -29,7 +29,8 @@ public class CubeController : MonoBehaviour
     UNSET,
     MANUAL,
     SHUFFLE,
-    SOLVE
+    SOLVE,
+    NOTATION
   }
   private enum ShuffleState
   {
@@ -62,36 +63,39 @@ public class CubeController : MonoBehaviour
     public float startingAngle;
     public float remainingAngle;
 
-    public override string ToString()
+    public override readonly string ToString()
     {
       return $"rotateAxis: {rotateAxis}, startingAngle: {startingAngle}, remainingAngle: {remainingAngle}";
     }
   }
   private struct Rotation
   {
-    public Rotation(GameObject side, Vector3 rotateAxis, int CWRots)
+    public Rotation(GameObject quad, Vector3 rotateAxis, int CWRots)
     {
-      this.side = side;
+      this.quad = quad;
       this.rotateAxis = rotateAxis;
       this.CWRots = CWRots;
     }
 
-    public GameObject side;
+    public GameObject quad;
     public Vector3 rotateAxis;
     public int CWRots;
 
-    public override string ToString()
+    public override readonly string ToString()
     {
-      return $"side: {side.GetComponent<SideComponent>().side}, rotateAxis: {rotateAxis}, CWRots: {CWRots}";
+      return $"side: {quad.GetComponent<SideComponent>().side}, rotateAxis: {rotateAxis}, CWRots: {CWRots}";
     }
   }
 
   // SCENE OBJECTS
-  private GameObject rubixCube;
   private TextMeshProUGUI liftLMB;
+  private GameObject rubixCube;
+  private GameObject notationContainer;
+  private GameObject startingSide;
   private Button shuffleToggleButton;
   private Button shuffleOneTimeButton;
   private Button magicSolveButton;
+  private Button notationContainerButton;
   private Scrollbar autoRotateSpeedScrollbar;
 
   // COLLECTIONS
@@ -105,6 +109,8 @@ public class CubeController : MonoBehaviour
   private Dictionary<GameObject, Vector3Int> cubeletGameObjectToIndexesMap;
   private Dictionary<Side, List<Vector3>> sideToVectorMap;
   private Dictionary<GameObject, Vector3> originalCubeletGameObjectToPositionMap; // ONLY SET ONCE
+  private Dictionary<Notation, Vector3Int> notationToCubeletIndexesMap;
+  private Dictionary<GameObject, Dictionary<Side, GameObject>> cubeletToSideMapMap; // A little silly. Is this the best method?
 
   // OTHER GLOBALS
   private MouseState currentMouseState;
@@ -123,7 +129,6 @@ public class CubeController : MonoBehaviour
   private bool rotateLMB = false;
   private bool canClickButtons = false;
   private bool isToggleEnabled = false;
-  private GameObject startingSide;
 
   // Start is called before the first frame update
   void Start()
@@ -143,15 +148,34 @@ public class CubeController : MonoBehaviour
       [Side.UP] = new() { Vector3.forward, Vector3.right },
       [Side.DOWN] = new() { Vector3.forward, Vector3.right },
     };
+    notationToCubeletIndexesMap = new()
+    {
+      { Notation.F, new( 1, 1, 0 ) },
+      { Notation.F_, new( 1, 1, 0 ) },
+      { Notation.R, new( 2, 1, 1 ) },
+      { Notation.R_, new( 2, 1, 1 ) },
+      { Notation.U, new( 1, 2, 1 ) },
+      { Notation.U_, new( 1, 2, 1 ) },
+      { Notation.L, new( 0, 1, 1 ) },
+      { Notation.L_, new( 0, 1, 1 ) },
+      { Notation.B, new( 1, 1, 2 ) },
+      { Notation.B_, new( 1, 1, 2 ) },
+      { Notation.D, new( 1, 0, 1 ) },
+      { Notation.D_, new( 1, 0, 1 ) },
+    };
     cubeletGameObjectToIndexesMap = new Dictionary<GameObject, Vector3Int>();
     originalCubeletGameObjectToPositionMap = new Dictionary<GameObject, Vector3>();
+    cubeletToSideMapMap = new Dictionary<GameObject, Dictionary<Side, GameObject>>();
     quadList = new();
     simState = SimState.MANUAL;
     rubixCube = GameObject.Find("Rubix Cube");
     liftLMB = GameObject.Find("LiftLMB").GetComponent<TextMeshProUGUI>();
+    notationContainer = GameObject.Find("NotationContainer");
+    notationContainer.SetActive(false);
     shuffleToggleButton = GameObject.Find("ShuffleToggleButton").GetComponent<Button>();
     shuffleOneTimeButton = GameObject.Find("ShuffleOneTimeButton").GetComponent<Button>();
     magicSolveButton = GameObject.Find("MagicSolveButton").GetComponent<Button>();
+    notationContainerButton = GameObject.Find("NotationContainerButton").GetComponent<Button>();
     autoRotateSpeedScrollbar = GameObject.Find("AutoRotateSpeedScrollbar").GetComponent<Scrollbar>();
     autoRotateSpeedScrollbar.value = .5F;
     cubePos = rubixCube.transform.position;
@@ -163,6 +187,7 @@ public class CubeController : MonoBehaviour
       cubeletIndexesToTransformArray[i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3] = child.transform;
       cubeletGameObjectToIndexesMap[child] = new Vector3Int(i % 3, (int)Math.Floor((i / 3.0)) % 3, (int)Math.Floor((i / 9.0)) % 3);
       originalCubeletGameObjectToPositionMap[child] = child.transform.position;
+      cubeletToSideMapMap[child] = new Dictionary<Side, GameObject>();
       for (int j = 0; j < child.transform.childCount; j++)
       {
         Side quadSide = child.transform.GetChild(j).gameObject.GetComponent<SideComponent>().side;
@@ -170,6 +195,7 @@ public class CubeController : MonoBehaviour
         if (quadSide != Side.INSIDE)
         {
           quadList.Add(child.transform.GetChild(j).gameObject);
+          cubeletToSideMapMap[child][quadSide] = child.transform.GetChild(j).gameObject;
         }
       }
     }
@@ -213,6 +239,23 @@ public class CubeController : MonoBehaviour
         }
 
         HandleSolveState();
+        break;
+
+      case SimState.NOTATION:
+        if (currentMouseState == MouseState.RMB)
+        {
+          // Rotate whole cube with RMB
+          float camX = Input.GetAxis("Mouse X");
+          float camY = Input.GetAxis("Mouse Y");
+
+          Quaternion rotation = Quaternion.Euler(camY * CAMERA_SPEED, -camX * CAMERA_SPEED, 0);
+          rubixCube.transform.rotation = rotation * rubixCube.transform.rotation;
+        }
+
+        if (remainingRotation.rotateAxis != Vector3.zero)
+        {
+          HandleNotationState();
+        }
         break;
 
       default:
@@ -371,13 +414,20 @@ public class CubeController : MonoBehaviour
     if (isToggleEnabled)
     {
       shuffleOneTimeButton.interactable = false;
-      if (simState == SimState.SHUFFLE)
+      switch (simState)
       {
-        magicSolveButton.interactable = false;
-      }
-      else if (simState == SimState.SOLVE)
-      {
-        shuffleToggleButton.interactable = false;
+        case SimState.SHUFFLE:
+          magicSolveButton.interactable = false;
+          notationContainerButton.interactable = false;
+          break;
+        case SimState.SOLVE:
+          shuffleToggleButton.interactable = false;
+          notationContainerButton.interactable = false;
+          break;
+        case SimState.NOTATION:
+          magicSolveButton.interactable = false;
+          shuffleToggleButton.interactable = false;
+          break;
       }
     }
     else
@@ -385,6 +435,15 @@ public class CubeController : MonoBehaviour
       shuffleToggleButton.interactable = true;
       shuffleOneTimeButton.interactable = true;
       magicSolveButton.interactable = true;
+      notationContainerButton.interactable = true;
+    }
+    if (notationContainer.activeSelf)
+    {
+      notationContainerButton.GetComponentInChildren<TextMeshProUGUI>().text = "\\/";
+    }
+    else
+    {
+      notationContainerButton.GetComponentInChildren<TextMeshProUGUI>().text = "/\\";
     }
     return;
   }
@@ -422,13 +481,13 @@ public class CubeController : MonoBehaviour
 
       int rotates = CWRotations(remainingRotation.startingAngle);
       UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, storeHistory);
-      remainingRotation = new RemainingRotation();
     }
     return;
   }
 
   private void UpdateSides(GameObject sideToRotate, List<Transform> rotGroup, Vector3 rotAxis, int rotates, bool addToHistory)
   {
+    remainingRotation = new RemainingRotation();
     if (rotates == 0) return;
     if (addToHistory)
     {
@@ -532,21 +591,35 @@ public class CubeController : MonoBehaviour
 
     foreach (var cubelet in rotGroup)
     {
+      cubeletToSideMapMap[cubelet.gameObject].Clear();
       for (int i = 0; i < cubelet.transform.childCount; i++)
       {
-        int index = sidesList.IndexOf(cubelet.transform.GetChild(i).GetComponent<SideComponent>().side);
-        if (index != -1)
+        Side side = cubelet.transform.GetChild(i).GetComponent<SideComponent>().side;
+        int index = sidesList.IndexOf(side);
+
+        if (side == Side.INSIDE)
         {
-          cubelet.transform.GetChild(i).GetComponent<SideComponent>().side = sidesList[(index + rotates + 4) % 4];
+          continue;
+        }
+        else if (index == -1)
+        {
+          cubeletToSideMapMap[cubelet.gameObject][side] = cubelet.transform.GetChild(i).gameObject;
+        }
+        else
+        {
+          side = sidesList[(index - rotates + 4) % 4];
+          cubelet.transform.GetChild(i).GetComponent<SideComponent>().side = side;
+
+          cubeletToSideMapMap[cubelet.gameObject][side] = cubelet.transform.GetChild(i).gameObject;
         }
       }
     }
   }
 
-  private List<Transform> InititalizeGroups(GameObject side, Vector3 axis)
+  private List<Transform> InititalizeGroups(GameObject quad, Vector3 axis)
   {
-    Side s = side.GetComponent<SideComponent>().side;
-    Vector3Int index = cubeletGameObjectToIndexesMap[side.transform.parent.gameObject];
+    Side s = quad.GetComponent<SideComponent>().side;
+    Vector3Int index = cubeletGameObjectToIndexesMap[quad.transform.parent.gameObject];
     List<Transform> transformGroup = new();
     switch (s)
     {
@@ -573,12 +646,32 @@ public class CubeController : MonoBehaviour
               }
             }
           }
+          else if (axis == Vector3.forward) // NON_AXIS
+          {
+            for (int i = 0; i <= 2; i++)
+            {
+              for (int j = 0; j <= 2; j++)
+              {
+                transformGroup.Add(cubeletIndexesToTransformArray[i, j, index.z]);
+              }
+            }
+          }
           break;
         }
       case Side.LEFT:
       case Side.RIGHT:
         {
-          if (axis == Vector3.up)
+          if (axis == Vector3.right) // NON_AXIS
+          {
+            for (int j = 0; j <= 2; j++)
+            {
+              for (int k = 0; k <= 2; k++)
+              {
+                transformGroup.Add(cubeletIndexesToTransformArray[index.x, j, k]);
+              }
+            }
+          }
+          else if (axis == Vector3.up)
           {
             for (int i = 0; i <= 2; i++)
             {
@@ -610,6 +703,16 @@ public class CubeController : MonoBehaviour
               for (int k = 0; k <= 2; k++)
               {
                 transformGroup.Add(cubeletIndexesToTransformArray[index.x, j, k]);
+              }
+            }
+          }
+          else if (axis == Vector3.up) // NON_AXIS
+          {
+            for (int i = 0; i <= 2; i++)
+            {
+              for (int k = 0; k <= 2; k++)
+              {
+                transformGroup.Add(cubeletIndexesToTransformArray[i, index.y, k]);
               }
             }
           }
@@ -692,8 +795,8 @@ public class CubeController : MonoBehaviour
         Rotation rotation = rotationHistory[^1];
         rotationHistory.RemoveAt(rotationHistory.Count - 1);
 
-        List<Transform> rotGroup = InititalizeGroups(rotation.side, rotation.rotateAxis);
-        remainingRotation = new RemainingRotation(rotation.side, rotGroup, rotation.rotateAxis, -90 * rotation.CWRots);
+        List<Transform> rotGroup = InititalizeGroups(rotation.quad, rotation.rotateAxis);
+        remainingRotation = new RemainingRotation(rotation.quad, rotGroup, rotation.rotateAxis, -90 * rotation.CWRots);
         solveState = SolveState.ROTATE;
         break;
       case SolveState.ROTATE:
@@ -707,6 +810,16 @@ public class CubeController : MonoBehaviour
         break;
       case SolveState.UNSET:
         break;
+    }
+  }
+
+  private void HandleNotationState()
+  {
+    ContinueRemainingRotation();
+    if (remainingRotation.remainingAngle == 0)
+    {
+      int rotates = CWRotations(remainingRotation.startingAngle);
+      UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
     }
   }
 
@@ -772,6 +885,7 @@ public class CubeController : MonoBehaviour
         child.transform.GetChild(j).GetComponent<SideComponent>().side = originalChildIndexesToSideArray[i, j];
       }
     }
+    notationContainer.SetActive(false);
     canClickButtons = true;
   }
 
@@ -787,6 +901,27 @@ public class CubeController : MonoBehaviour
     FinishRemainingRotation(false);
     magicSolveButton.interactable = true;
     canClickButtons = true;
+  }
+
+  // Called by the NotationContainerButton.onClick()
+  public void NotationContainerButton()
+  {
+    notationContainerButton.interactable = false;
+    isToggleEnabled = (isToggleEnabled == false);
+    simState = (simState == SimState.NOTATION) ? SimState.MANUAL : SimState.NOTATION;
+    FinishRemainingRotation(true);
+    notationContainer.SetActive(notationContainer.activeSelf == false);
+    notationContainerButton.interactable = true;
+  }
+
+  public void NotationRotate(Notation notation)
+  {
+    FinishRemainingRotation(true);
+    Vector3Int cubeletIndex = notationToCubeletIndexesMap[notation];
+    GameObject cubelet = cubeletIndexesToTransformArray[cubeletIndex.x, cubeletIndex.y, cubeletIndex.z].gameObject;
+    GameObject quad = cubeletToSideMapMap[cubelet][notation.GetSide()];
+    List<Transform> rotGroup = InititalizeGroups(quad, notation.GetRotateAxis());
+    remainingRotation = new RemainingRotation(quad, rotGroup, notation.GetRotateAxis(), 90 * notation.GetRotationSign());
   }
 
   private void RotateGroup(GameObject sideToRotate, Vector3 rotAxis, int numRotates)
