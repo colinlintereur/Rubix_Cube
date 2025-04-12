@@ -81,4 +81,75 @@ public class NotationController : MonoBehaviour
     cubeController.NotationRotate(Notation.D_);
   }
 
+  // Called by the M.onClick()
+  public void M()
+  {
+    cubeController.NotationRotate(Notation.M);
+  }
+
+  // Called by the E.onClick()
+  public void E()
+  {
+    cubeController.NotationRotate(Notation.E);
+  }
+
+  // Called by the S.onClick()
+  public void S()
+  {
+    cubeController.NotationRotate(Notation.S);
+  }
+
+  // Called by the M'.onClick()
+  public void M_()
+  {
+    cubeController.NotationRotate(Notation.M_);
+  }
+
+  // Called by the E'.onClick()
+  public void E_()
+  {
+    cubeController.NotationRotate(Notation.E_);
+  }
+
+  // Called by the S'.onClick()
+  public void S_()
+  {
+    cubeController.NotationRotate(Notation.S_);
+  }
+
+  // Called by the X.onClick()
+  public void X()
+  {
+    cubeController.NotationRotate(Notation.X);
+  }
+
+  // Called by the Y.onClick()
+  public void Y()
+  {
+    cubeController.NotationRotate(Notation.Y);
+  }
+
+  // Called by the Z.onClick()
+  public void Z()
+  {
+    cubeController.NotationRotate(Notation.Z);
+  }
+
+  // Called by the X'.onClick()
+  public void X_()
+  {
+    cubeController.NotationRotate(Notation.X_);
+  }
+
+  // Called by the Y'.onClick()
+  public void Y_()
+  {
+    cubeController.NotationRotate(Notation.Y_);
+  }
+
+  // Called by the Z'.onClick()
+  public void Z_()
+  {
+    cubeController.NotationRotate(Notation.Z_);
+  }
 }

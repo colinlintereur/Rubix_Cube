@@ -19,7 +19,19 @@ public enum Notation
   B,   // Back
   B_,
   D,   // Down
-  D_
+  D_,
+  M,   // Middle
+  M_,
+  E,   // Middle
+  E_,
+  S,   // Middle
+  S_,
+  X,   // Rotate the whole cube
+  X_,
+  Y,   // Rotate the whole cube
+  Y_,
+  Z,   // Rotate the whole cube
+  Z_,
 }
 public static class NotationExtensions
 {
@@ -37,6 +49,18 @@ public static class NotationExtensions
     Notation.B_ => Side.BACK,
     Notation.D => Side.DOWN,
     Notation.D_ => Side.DOWN,
+    Notation.M => Side.FRONT,
+    Notation.M_ => Side.FRONT,
+    Notation.E => Side.FRONT,
+    Notation.E_ => Side.FRONT,
+    Notation.S => Side.UP,
+    Notation.S_ => Side.UP,
+    Notation.X => Side.FRONT,
+    Notation.X_ => Side.FRONT,
+    Notation.Y => Side.FRONT,
+    Notation.Y_ => Side.FRONT,
+    Notation.Z => Side.FRONT,
+    Notation.Z_ => Side.FRONT,
     _ => Side.INSIDE,
   };
 
@@ -54,6 +78,18 @@ public static class NotationExtensions
     Notation.B_ => Vector3.forward,
     Notation.D => Vector3.up,
     Notation.D_ => Vector3.up,
+    Notation.M => Vector3.right,
+    Notation.M_ => Vector3.right,
+    Notation.E => Vector3.up,
+    Notation.E_ => Vector3.up,
+    Notation.S => Vector3.forward,
+    Notation.S_ => Vector3.forward,
+    Notation.X => Vector3.right,
+    Notation.X_ => Vector3.right,
+    Notation.Y => Vector3.up,
+    Notation.Y_ => Vector3.up,
+    Notation.Z => Vector3.forward,
+    Notation.Z_ => Vector3.forward,
     _ => Vector3.zero,
   };
 
@@ -71,7 +107,48 @@ public static class NotationExtensions
     Notation.B_ => -1,
     Notation.D => -1,
     Notation.D_ => 1,
+    Notation.M => -1,
+    Notation.M_ => 1,
+    Notation.E => -1,
+    Notation.E_ => 1,
+    Notation.S => -1,
+    Notation.S_ => 1,
+    Notation.X => 1,
+    Notation.X_ => -1,
+    Notation.Y => 1,
+    Notation.Y_ => -1,
+    Notation.Z => -1,
+    Notation.Z_ => 1,
     _ => 0,
+  };
+
+  public static bool IsCubeRotation(this Notation notation) => notation switch
+  {
+    Notation.F => false,
+    Notation.F_ => false,
+    Notation.R => false,
+    Notation.R_ => false,
+    Notation.U => false,
+    Notation.U_ => false,
+    Notation.L => false,
+    Notation.L_ => false,
+    Notation.B => false,
+    Notation.B_ => false,
+    Notation.D => false,
+    Notation.D_ => false,
+    Notation.M => false,
+    Notation.M_ => false,
+    Notation.E => false,
+    Notation.E_ => false,
+    Notation.S => false,
+    Notation.S_ => false,
+    Notation.X => true,
+    Notation.X_ => true,
+    Notation.Y => true,
+    Notation.Y_ => true,
+    Notation.Z => true,
+    Notation.Z_ => true,
+    _ => false,
   };
 }
 
@@ -91,6 +168,18 @@ public static class Notations
     "B'" => Notation.B_,
     "D" => Notation.D,
     "D'" => Notation.D_,
+    "M" => Notation.M,
+    "M'" => Notation.M_,
+    "E" => Notation.E,
+    "E'" => Notation.E_,
+    "S" => Notation.S,
+    "S'" => Notation.S_,
+    "X" => Notation.X,
+    "X'" => Notation.X_,
+    "Y" => Notation.Y,
+    "Y'" => Notation.Y_,
+    "Z" => Notation.Z,
+    "Z'" => Notation.Z_,
     _ => Notation.UNSET
   };
 }

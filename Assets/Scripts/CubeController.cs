@@ -172,6 +172,18 @@ public class CubeController : MonoBehaviour
       { Notation.B_, new( 1, 1, 2 ) },
       { Notation.D, new( 1, 0, 1 ) },
       { Notation.D_, new( 1, 0, 1 ) },
+      { Notation.M, new( 1, 1, 0 ) },
+      { Notation.M_, new( 1, 1, 0 ) },
+      { Notation.E, new( 1, 1, 0 ) },
+      { Notation.E_, new( 1, 1, 0 ) },
+      { Notation.S, new( 1, 2, 1 ) },
+      { Notation.S_, new( 1, 2, 1 ) },
+      { Notation.X, new(1, 1, 1) },
+      { Notation.X_, new(1, 1, 1) },
+      { Notation.Y, new(1, 1, 1) },
+      { Notation.Y_, new(1, 1, 1) },
+      { Notation.Z, new(1, 1, 1) },
+      { Notation.Z_, new(1, 1, 1) },
     };
     cubeletGameObjectToIndexesMap = new Dictionary<GameObject, Vector3Int>();
     originalCubeletGameObjectToPositionMap = new Dictionary<GameObject, Vector3>();
@@ -740,7 +752,21 @@ public class CubeController : MonoBehaviour
           }
           break;
         }
+      // This is the case for whole-cube rotations
       case Side.INSIDE:
+        {
+          for (int i = 0; i <= 2; i++)
+          {
+            for (int j = 0; j <= 2; j++)
+            {
+              for (int k = 0; k <= 2; k++)
+              {
+                transformGroup.Add(cubeletIndexesToTransformArray[i, j, k]);
+              }
+            }
+          }
+          break;
+        }
       default: break;
     }
 
@@ -961,7 +987,15 @@ public class CubeController : MonoBehaviour
     FinishRemainingRotation(true);
     Vector3Int cubeletIndex = notationToCubeletIndexesMap[notation];
     GameObject cubelet = cubeletIndexesToTransformArray[cubeletIndex.x, cubeletIndex.y, cubeletIndex.z].gameObject;
-    GameObject quad = cubeletToSideMapMap[cubelet][notation.GetSide()];
+    GameObject quad;
+    if (notation.IsCubeRotation())
+    {
+      quad = cubelet.transform.GetChild(0).gameObject;
+    }
+    else
+    {
+      quad = cubeletToSideMapMap[cubelet][notation.GetSide()];
+    }
     List<Transform> rotGroup = InititalizeGroups(quad, notation.GetRotateAxis());
     remainingRotation = new RemainingRotation(quad, rotGroup, notation.GetRotateAxis(), 90 * notation.GetRotationSign());
   }
