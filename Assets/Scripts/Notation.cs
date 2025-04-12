@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 // Letters refer to the face that is rotating (ex: F = Front).
@@ -71,5 +72,25 @@ public static class NotationExtensions
     Notation.D => -1,
     Notation.D_ => 1,
     _ => 0,
+  };
+}
+
+public static class Notations
+{
+  public static Notation ConvertString(String str) => str switch
+  {
+    "F" => Notation.F,
+    "F'" => Notation.F_,
+    "R" => Notation.R,
+    "R'" => Notation.R_,
+    "U" => Notation.U,
+    "U'" => Notation.U_,
+    "L" => Notation.L,
+    "L'" => Notation.L_,
+    "B" => Notation.B,
+    "B'" => Notation.B_,
+    "D" => Notation.D,
+    "D'" => Notation.D_,
+    _ => Notation.UNSET
   };
 }

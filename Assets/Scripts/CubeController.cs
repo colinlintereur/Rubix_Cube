@@ -44,6 +44,12 @@ public class CubeController : MonoBehaviour
     PICK,
     ROTATE
   }
+  private enum NotationState
+  {
+    UNSET,
+    PICK,
+    ROTATE
+  }
 
   // STRUCTS
   private struct RemainingRotation
@@ -88,7 +94,9 @@ public class CubeController : MonoBehaviour
   }
 
   // SCENE OBJECTS
-  private TextMeshProUGUI liftLMB;
+  private TextMeshProUGUI liftLMBText;
+  private TextMeshProUGUI invalidInputText;
+  private TMP_InputField notationInputField;
   private GameObject rubixCube;
   private GameObject notationContainer;
   private GameObject startingSide;
@@ -103,7 +111,8 @@ public class CubeController : MonoBehaviour
   private readonly Side[,] originalChildIndexesToSideArray = new Side[27, 6]; // ONLY SET ONCE
   private List<Transform> rotateGroup;
   private List<GameObject> quadList;
-  private List<Rotation> rotationHistory;
+  private Stack<Rotation> rotationHistory;
+  private Queue<Notation> notationList;
   private SortedDictionary<double, (Vector3 axis, Vector2 persp)> sorted;
   private Dictionary<Vector3, List<Side>> vectorToSideMap;
   private Dictionary<GameObject, Vector3Int> cubeletGameObjectToIndexesMap;
@@ -118,6 +127,7 @@ public class CubeController : MonoBehaviour
   private SimState simState;
   private ShuffleState shuffleState;
   private SolveState solveState;
+  private NotationState notationState;
   private RemainingRotation remainingRotation;
   private Vector3 rotateAxis = Vector3.zero;
   private Vector3 nonAxis = Vector3.zero;
@@ -167,19 +177,24 @@ public class CubeController : MonoBehaviour
     originalCubeletGameObjectToPositionMap = new Dictionary<GameObject, Vector3>();
     cubeletToSideMapMap = new Dictionary<GameObject, Dictionary<Side, GameObject>>();
     quadList = new();
+    notationList = new();
     simState = SimState.MANUAL;
     rubixCube = GameObject.Find("Rubix Cube");
-    liftLMB = GameObject.Find("LiftLMB").GetComponent<TextMeshProUGUI>();
+    liftLMBText = GameObject.Find("LiftLMBText").GetComponent<TextMeshProUGUI>();
+    invalidInputText = GameObject.Find("InvalidInputText").GetComponent<TextMeshProUGUI>();
+    notationInputField = GameObject.Find("NotationInput").GetComponent<TMP_InputField>();
     notationContainer = GameObject.Find("NotationContainer");
-    notationContainer.SetActive(false);
     shuffleToggleButton = GameObject.Find("ShuffleToggleButton").GetComponent<Button>();
     shuffleOneTimeButton = GameObject.Find("ShuffleOneTimeButton").GetComponent<Button>();
     magicSolveButton = GameObject.Find("MagicSolveButton").GetComponent<Button>();
     notationContainerButton = GameObject.Find("NotationContainerButton").GetComponent<Button>();
     autoRotateSpeedScrollbar = GameObject.Find("AutoRotateSpeedScrollbar").GetComponent<Scrollbar>();
+
+    notationContainer.SetActive(false);
     autoRotateSpeedScrollbar.value = .5F;
     cubePos = rubixCube.transform.position;
     rotationHistory = new();
+    invalidInputText.text = "";
 
     for (int i = 0; i < rubixCube.transform.childCount; i++)
     {
@@ -252,10 +267,7 @@ public class CubeController : MonoBehaviour
           rubixCube.transform.rotation = rotation * rubixCube.transform.rotation;
         }
 
-        if (remainingRotation.rotateAxis != Vector3.zero)
-        {
-          HandleNotationState();
-        }
+        HandleNotationState();
         break;
 
       default:
@@ -409,7 +421,7 @@ public class CubeController : MonoBehaviour
 
   private void GameObjectUpdates()
   {
-    liftLMB.color = lockLMB ? Color.red : Color.clear;
+    liftLMBText.color = lockLMB ? Color.red : Color.clear;
     AUTO_ROTATE_SPEED = AUTO_ROTATE_SPEED_SCALE * autoRotateSpeedScrollbar.value;
     if (isToggleEnabled)
     {
@@ -491,7 +503,7 @@ public class CubeController : MonoBehaviour
     if (rotates == 0) return;
     if (addToHistory)
     {
-      rotationHistory.Add(new Rotation(sideToRotate, rotAxis, rotates));
+      rotationHistory.Push(new Rotation(sideToRotate, rotAxis, rotates));
     }
     List<Side> sidesList = vectorToSideMap[rotAxis];
     int swap;
@@ -792,8 +804,7 @@ public class CubeController : MonoBehaviour
           isToggleEnabled = false;
           break;
         }
-        Rotation rotation = rotationHistory[^1];
-        rotationHistory.RemoveAt(rotationHistory.Count - 1);
+        Rotation rotation = rotationHistory.Pop();
 
         List<Transform> rotGroup = InititalizeGroups(rotation.quad, rotation.rotateAxis);
         remainingRotation = new RemainingRotation(rotation.quad, rotGroup, rotation.rotateAxis, -90 * rotation.CWRots);
@@ -815,11 +826,31 @@ public class CubeController : MonoBehaviour
 
   private void HandleNotationState()
   {
-    ContinueRemainingRotation();
-    if (remainingRotation.remainingAngle == 0)
+    switch (notationState)
     {
-      int rotates = CWRotations(remainingRotation.startingAngle);
-      UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
+      case NotationState.PICK:
+        if (notationList.Count == 0)
+        {
+          simState = SimState.NOTATION;
+          notationState = NotationState.UNSET;
+          break;
+        }
+        Notation notation = notationList.Dequeue();
+
+        NotationToRotation(notation);
+        notationState = NotationState.ROTATE;
+        break;
+      case NotationState.ROTATE:
+        ContinueRemainingRotation();
+        if (remainingRotation.remainingAngle == 0)
+        {
+          int rotates = CWRotations(remainingRotation.startingAngle);
+          UpdateSides(remainingRotation.sideToRotate, remainingRotation.rotateGroup, remainingRotation.rotateAxis, rotates, true);
+          notationState = NotationState.PICK;
+        }
+        break;
+      case NotationState.UNSET:
+        break;
     }
   }
 
@@ -912,9 +943,20 @@ public class CubeController : MonoBehaviour
     FinishRemainingRotation(true);
     notationContainer.SetActive(notationContainer.activeSelf == false);
     notationContainerButton.interactable = true;
+    invalidInputText.text = "";
   }
 
   public void NotationRotate(Notation notation)
+  {
+    notationList.Enqueue(notation);
+    simState = SimState.NOTATION;
+    if (notationState != NotationState.ROTATE)
+    {
+      notationState = NotationState.PICK;
+    }
+  }
+
+  private void NotationToRotation(Notation notation)
   {
     FinishRemainingRotation(true);
     Vector3Int cubeletIndex = notationToCubeletIndexesMap[notation];
@@ -922,6 +964,46 @@ public class CubeController : MonoBehaviour
     GameObject quad = cubeletToSideMapMap[cubelet][notation.GetSide()];
     List<Transform> rotGroup = InititalizeGroups(quad, notation.GetRotateAxis());
     remainingRotation = new RemainingRotation(quad, rotGroup, notation.GetRotateAxis(), 90 * notation.GetRotationSign());
+  }
+
+  // Called by the SubmitInputButton.onClick()
+  public void SubmitInputButton()
+  {
+    invalidInputText.text = "";
+    String rotationInput = notationInputField.text;
+    if (rotationInput == null || rotationInput == "") return;
+    notationInputField.SetTextWithoutNotify("");
+
+    char delimiter = ' ';
+    if (rotationInput.Contains(','))
+    {
+      delimiter = ',';
+    }
+
+    String[] rotations = rotationInput.Split(delimiter);
+    foreach (String rotation in rotations)
+    {
+      String trimmedRotation = rotation.Trim();
+      Notation notation = Notations.ConvertString(trimmedRotation);
+      if (notation == Notation.UNSET)
+      {
+        invalidInputText.text = $"Invalid input: '{trimmedRotation}'";
+        notationList.Clear();
+        return;
+      }
+      notationList.Enqueue(notation);
+    }
+
+    simState = SimState.NOTATION;
+    if (notationState != NotationState.ROTATE)
+    {
+      notationState = NotationState.PICK;
+    }
+  }
+
+  public void ClearInvalidInputText()
+  {
+    invalidInputText.text = "";
   }
 
   private void RotateGroup(GameObject sideToRotate, Vector3 rotAxis, int numRotates)
